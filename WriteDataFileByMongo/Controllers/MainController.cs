@@ -29,6 +29,7 @@ namespace WriteDataFileByMongo.Controllers
             {
                 string originPath = ConfigurationManager.AppSettings["OriginPath"];
 
+
                 List<string> loggers = await getLoggerInConfigFileAction.GetLoggerInConfigFile();
 
 
@@ -38,6 +39,7 @@ namespace WriteDataFileByMongo.Controllers
 
                     for (int i = 0; i < loggers.Count; i++)
                     {
+                        Console.WriteLine(loggers[i]);
                         List<string> listChannelId = new List<string>();
 
                         string pressure = $"{transferLoggers[i]}_01";
@@ -79,7 +81,7 @@ namespace WriteDataFileByMongo.Controllers
                                     {
 
                                         DateTime end = DateTime.Now.AddDays(1);
-                                        List<DataLoggerModel> listDataLogger = await getDataAPIAction.GetDataAPI(loggers[i], channelid, lTime.Value, end);
+                                        List<DataLoggerModel> listDataLogger = await getDataAPIAction.GetDataAPI(loggers[i], channelid, lTime.Value.AddDays(-1), end);
 
                                         if (listDataLogger.Count > 0)
                                         {
@@ -102,37 +104,115 @@ namespace WriteDataFileByMongo.Controllers
                                             {
                                                 DataLoggerModel data = listDataLogger.Find(d => d.TimeStamp >= time && d.TimeStamp <= time.AddSeconds(rate));
 
-                                                if(data.Value < 0)
+                                                if (data != null && data.Value != null)
                                                 {
-                                                    if (channelid[channelid.Length - 1] == '2')
+                                                    // forward and reverse
+                                                    if (channelid == forward)
                                                     {
-                                                        fileName = Path.Combine(originPath, reverse + ".dat");
-                                                        data.Value = data.Value * -1;
-                                                    }
-                                                }
+                                                        double f = 0;
+                                                        double r = 0;
 
-                                                if (data != null && data.TimeStamp != null && data.Value != null)
-                                                {
-                                                    long diff = (long)(time - fTime.Value).TotalSeconds;
-
-                                                    if (diff >= 0 && byes_per_reading > 0)
-                                                    {
-                                                        if (diff % rate == 0)
+                                                        if (data.Value < 0)
                                                         {
-                                                            using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                            r = data.Value.Value * -1;
+                                                            f = 0;
+                                                        }
+                                                        else
+                                                        {
+                                                            f = data.Value.Value;
+                                                            r = 0;
+                                                        }
+
+                                                        // fill for foward
+                                                        if (data != null && data.TimeStamp != null && data.Value != null)
+                                                        {
+                                                            long diff = (long)(time - fTime.Value).TotalSeconds;
+
+                                                            if (diff >= 0 && byes_per_reading > 0)
                                                             {
-                                                                double rs = Math.Round((double)((data.Value * valueFind) / dbRange - dbOffset), 3);
-                                                                ushort vlbit16 = 0;
-                                                                if (byes_per_reading == 2)
+                                                                if (diff % rate == 0)
                                                                 {
-                                                                    vlbit16 = Convert.ToUInt16(rs);
+                                                                    fileName = Path.Combine(originPath, forward + ".dat");
+
+                                                                    using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                                    {
+                                                                        double rs = Math.Round((double)((f * valueFind) / dbRange - dbOffset), 3);
+                                                                        ushort vlbit16 = 0;
+                                                                        if (byes_per_reading == 2)
+                                                                        {
+                                                                            vlbit16 = Convert.ToUInt16(rs);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            vlbit16 = Convert.ToByte(rs);
+                                                                        }
+                                                                        reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
+                                                                        reader.Write(vlbit16);
+                                                                    }
                                                                 }
-                                                                else
+                                                            }
+                                                        }
+                                                        // fill for reverse
+                                                        if (data != null && data.TimeStamp != null && data.Value != null)
+                                                        {
+                                                            long diff = (long)(time - fTime.Value).TotalSeconds;
+
+                                                            if (diff >= 0 && byes_per_reading > 0)
+                                                            {
+                                                                if (diff % rate == 0)
                                                                 {
-                                                                    vlbit16 = Convert.ToByte(rs);
+
+                                                                    fileName = Path.Combine(originPath, reverse + ".dat");
+
+                                                                    using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                                    {
+                                                                        double rs = Math.Round((double)((r * valueFind) / dbRange - dbOffset), 3);
+                                                                        ushort vlbit16 = 0;
+                                                                        if (byes_per_reading == 2)
+                                                                        {
+                                                                            vlbit16 = Convert.ToUInt16(rs);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            vlbit16 = Convert.ToByte(rs);
+                                                                        }
+                                                                        reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
+                                                                        reader.Write(vlbit16);
+                                                                    }
                                                                 }
-                                                                reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
-                                                                reader.Write(vlbit16);
+                                                            }
+                                                        }
+
+                                                    }
+                                                    //pressure
+                                                    else
+                                                    {
+                                                        if (data != null && data.TimeStamp != null && data.Value != null)
+                                                        {
+                                                            long diff = (long)(time - fTime.Value).TotalSeconds;
+
+                                                            if (diff >= 0 && byes_per_reading > 0)
+                                                            {
+                                                                if (diff % rate == 0)
+                                                                {
+
+
+                                                                    using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                                    {
+                                                                        double rs = Math.Round((double)((data.Value * valueFind) / dbRange - dbOffset), 3);
+                                                                        ushort vlbit16 = 0;
+                                                                        if (byes_per_reading == 2)
+                                                                        {
+                                                                            vlbit16 = Convert.ToUInt16(rs);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            vlbit16 = Convert.ToByte(rs);
+                                                                        }
+                                                                        reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
+                                                                        reader.Write(vlbit16);
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -184,38 +264,113 @@ namespace WriteDataFileByMongo.Controllers
                                             while (time <= currentTime)
                                             {
                                                 DataLoggerModel data = listDataLogger.Find(d => d.TimeStamp >= time && d.TimeStamp <= time.Value.AddSeconds(rate));
-
-                                                if (data.Value < 0)
+                                                if (data != null && data.Value != null)
                                                 {
-                                                    if (channelid[channelid.Length - 1] == '2')
-                                                    {
-                                                        fileName = Path.Combine(originPath, reverse + ".dat");
-                                                        data.Value = data.Value * -1;
-                                                    }
-                                                }
 
-                                                if (data != null && data.TimeStamp != null && data.Value != null)
-                                                {
-                                                    long diff = (long)(time.Value - fTime.Value).TotalSeconds;
-
-                                                    if (diff >= 0 && byes_per_reading > 0)
+                                                    // forward and reverse
+                                                    if (channelid == forward)
                                                     {
-                                                        if (diff % rate == 0)
+                                                        double f = 0;
+                                                        double r = 0;
+
+                                                        if (data.Value < 0)
                                                         {
-                                                            using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                            r = data.Value.Value * -1;
+                                                            f = 0;
+                                                        }
+                                                        else
+                                                        {
+                                                            f = data.Value.Value;
+                                                            r = 0;
+                                                        }
+
+                                                        // fill for foward
+                                                        if (data != null && data.TimeStamp != null && data.Value != null)
+                                                        {
+                                                            long diff = (long)(time.Value - fTime.Value).TotalSeconds;
+
+                                                            if (diff >= 0 && byes_per_reading > 0)
                                                             {
-                                                                double rs = Math.Round((double)((data.Value * valueFind) / dbRange - dbOffset), 3);
-                                                                ushort vlbit16 = 0;
-                                                                if (byes_per_reading == 2)
+                                                                if (diff % rate == 0)
                                                                 {
-                                                                    vlbit16 = Convert.ToUInt16(rs);
+                                                                    fileName = Path.Combine(originPath, forward + ".dat");
+
+                                                                    using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                                    {
+                                                                        double rs = Math.Round((double)((f * valueFind) / dbRange - dbOffset), 3);
+                                                                        ushort vlbit16 = 0;
+                                                                        if (byes_per_reading == 2)
+                                                                        {
+                                                                            vlbit16 = Convert.ToUInt16(rs);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            vlbit16 = Convert.ToByte(rs);
+                                                                        }
+                                                                        reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
+                                                                        reader.Write(vlbit16);
+                                                                    }
                                                                 }
-                                                                else
+                                                            }
+                                                        }
+                                                        // fill for reverse
+                                                        if (data != null && data.TimeStamp != null && data.Value != null)
+                                                        {
+                                                            long diff = (long)(time.Value - fTime.Value).TotalSeconds;
+
+                                                            if (diff >= 0 && byes_per_reading > 0)
+                                                            {
+                                                                if (diff % rate == 0)
                                                                 {
-                                                                    vlbit16 = Convert.ToByte(rs);
+                                                                    fileName = Path.Combine(originPath, reverse + ".dat");
+
+                                                                    using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                                    {
+                                                                        double rs = Math.Round((double)((r * valueFind) / dbRange - dbOffset), 3);
+                                                                        ushort vlbit16 = 0;
+                                                                        if (byes_per_reading == 2)
+                                                                        {
+                                                                            vlbit16 = Convert.ToUInt16(rs);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            vlbit16 = Convert.ToByte(rs);
+                                                                        }
+                                                                        reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
+                                                                        reader.Write(vlbit16);
+                                                                    }
                                                                 }
-                                                                reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
-                                                                reader.Write(vlbit16);
+                                                            }
+                                                        }
+
+                                                    }
+                                                    //pressure
+                                                    else
+                                                    {
+                                                        if (data != null && data.TimeStamp != null && data.Value != null)
+                                                        {
+                                                            long diff = (long)(time.Value - fTime.Value).TotalSeconds;
+
+                                                            if (diff >= 0 && byes_per_reading > 0)
+                                                            {
+                                                                if (diff % rate == 0)
+                                                                {
+                                                                    using (BinaryWriter reader = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate)))
+                                                                    {
+                                                                        double rs = Math.Round((double)((data.Value * valueFind) / dbRange - dbOffset), 3);
+                                                                        ushort vlbit16 = 0;
+                                                                        if (byes_per_reading == 2)
+                                                                        {
+                                                                            vlbit16 = Convert.ToUInt16(rs);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            vlbit16 = Convert.ToByte(rs);
+                                                                        }
+                                                                        reader.BaseStream.Position = 78 + (((diff / rate) + 0) * byes_per_reading);
+                                                                        reader.Write(vlbit16);
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }

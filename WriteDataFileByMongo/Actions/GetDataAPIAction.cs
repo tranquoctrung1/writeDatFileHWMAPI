@@ -85,6 +85,7 @@ namespace WriteDataFileByMongo.Actions
                                                 }
                                                 if (el.TimeStamp != null)
                                                 {
+                                                    
                                                     if (el.TimeStamp.Value > start)
                                                     {
                                                         result.Add(el);
